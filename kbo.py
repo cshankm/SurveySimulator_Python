@@ -66,12 +66,18 @@ class kbo:
 
 
         """
-        alpha_faint = alpha if alpha_faint is None else alpha_faint
 
+        # Avoid singularity for alpha = 0
+        alpha = 0.0000000001 if alpha == 0 else alpha
+        # Set alpha_faint to alpha for the case of a single power-law
+        alpha_faint = alpha if alpha_faint is None else alpha_faint
+        # Avoid singularity for alpha_faint = 0
+        alpha_faint = 0.0000000001 if alpha_faint == 0 else alpha_faint
+        # Set hbreak to be the maximum H for the case of a single power-law
         hbreak = hmax if hbreak is None else hbreak
 
-        # ckc is the fraction of objects big of the knee/cliff
-        # (with contrast cont >= 1)
+        # ckc is the fraction of objects big (H<Hbreak) of the break
+        # (with contrast cont >= 1 as in Shankman et al. 2013)
         ckc = (1.0 + 1.0 / contrast * alpha / alpha_faint *
                (10**(alpha_faint*(hmax - hbreak)) - 1.0))**(-1.0)
 
