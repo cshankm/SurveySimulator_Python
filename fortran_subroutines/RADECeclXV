@@ -1,0 +1,51 @@
+      subroutine RADECeclXV (pos, obspos, delta, ra, dec)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine computes the RA and DEC of an object, defined by its
+c barycentric ecliptic cartesian coordinates, with respect to an
+c observatory, defined by its ICRF cartesian coordinates.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : February 2004
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     pos   : Object barycentric ecliptic cartsian coordinates (3*R8)
+c     obspos: Observatory ICRF cartsian coordinates (3*R8)
+c
+c OUTPUT
+c     delta : Distance to observatory (R8)
+c     ra    : Right Ascension (R8)
+c     dec   : Declination (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) pos
+Cf2py intent(in) obspos
+Cf2py intent(out) delta
+Cf2py intent(out) ra
+Cf2py intent(out) dec
+
+      implicit none
+
+      real*8
+     $  obspos(3), ra, dec, pos(3), opos(3), delta
+
+      integer*4
+     $  ierr
+
+c Compute ICRF cartesian coordinates
+      call equat_ecl (-1, pos, opos, ierr)
+      if (ierr .ne. 0) then
+         write (6, *) 'Problem in conversion ecliptic -> equatorial'
+      end if
+
+c Compute RA and DEC
+      opos(1) = opos(1) - obspos(1)
+      opos(2) = opos(2) - obspos(2)
+      opos(3) = opos(3) - obspos(3)
+      call LatLong (opos, ra, dec, delta)
+
+      return
+
+      end
+

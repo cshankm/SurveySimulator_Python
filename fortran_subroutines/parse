@@ -1,0 +1,159 @@
+      subroutine parse (command, nwmax, nw, word, lw)
+
+c \subsection{Arguments}
+c \subsubsection{D\'efinitions}
+c \begin{verse}
+c \verb|command| = ligne de commande \\
+c \verb|lw()| = longueur des mots \\
+c \verb|nw| = nombre de mots dans la ligne de commande \\
+c \verb|nwmax| = nombre maximum de mots dans la ligne de commande \\
+c \verb|word()| = mots de la commande
+c \end{verse}
+
+c \subsubsection{D\'eclarations}
+
+      integer*4
+     $     lw(1), nw, nwmax
+
+      character
+     $     command*(*), word(1)*(*)
+
+c \subsection{Variables}
+c \subsubsection{Variables interm\'ediaires}
+c \begin{verse}
+c \verb|k| = indice banal \\
+c \verb|lc| = longueur de la ligne de commande \\
+c \verb|lw0| = longueur des mots
+c \end{verse}
+
+c \subsubsection{Fonctions Fortran SUN utilis\'ees}
+c \begin{verse}
+c \verb|index|
+c \end{verse}
+
+c \subsubsection{D\'eclarations}
+
+      integer*4
+     $     k, lc, lw0, lw1
+
+c \subsection{Calcul}
+
+      do nw = 1, nwmax
+         lw(nw) = 0
+      end do
+      lc = len(command)
+ 1000 continue
+      if ((command(lc:lc) .eq. char(0))
+     $  .or. (command(lc:lc) .eq. char(9))
+     $  .or. (command(lc:lc) .eq. ' ')) then
+         lc = lc - 1
+         if (lc .eq. 0) goto 1001
+         goto 1000
+      end if
+ 1001 continue
+      nw = 0
+      do k = 1, nwmax
+          word(k) = ' '
+      end do
+
+ 1100 continue
+      if (lc .gt. 0) then
+
+c Supprime les blancs en t\^ete
+
+         if (nw .ge. nwmax) then
+            write (6, *) 'PARSE: too many fields in line.'
+            stop
+         end if
+ 1050    continue
+         if ((command(1:1) .eq. ' ')
+     $     .or. (command(lc:lc) .eq. char(9))) then
+            command = command (2:lc)
+            lc = lc - 1
+            goto 1050
+         end if
+
+c Isole un mot
+
+         nw = nw + 1
+         lw0 = index(command, ' ') - 1
+         lw1 = index(command, char(9)) - 1
+         if ((lw1 .ge. 0) .and. (lw1 .lt. lw0)) lw0 = lw1
+         word (nw) = command (1:lw0)
+         lw(nw) = lw0
+         command = command (lw0+2:lc)
+         lc = lc - lw0 - 1
+         goto 1100
+      end if
+
+      return
+      end
+
+
+      SUBROUTINE  hms(str,val)
+c
+c...Crack String And Create Value
+c
+      IMPLICIT
+     *            NONE
+      CHARACTER*(*)
+     *            str
+      DOUBLE PRECISION
+     *            val, piece(3), dp, sgn, z
+      INTEGER
+     *            nstr, i, j, dpfind
+      CHARACTER*1
+     *            c
+c
+c...Initialization
+c
+  100 val = 0.0D00
+      DO i=1,3
+        piece(i) = 0.0D00
+      ENDDO
+      j = 1
+      dpfind = 0
+      sgn = 1.0D00
+      nstr = LEN(str)
+      IF (nstr.le.0) RETURN
+c
+c...Loop Over The String
+c
+      DO i=1,nstr
+        c = str(i:i)
+c
+c...Parse
+c
+        IF ((c.eq.'-').or.(c.eq.'e').or.(c.eq.'E')
+     *  .or.(c.eq.'s').or.(c.eq.'S')) THEN
+          sgn = -1.0D00
+        ELSEIF ((c.eq.'+').or.(c.eq.'w').or.(c.eq.'W')
+     *      .or.(c.eq.'n').or.(c.eq.'N')) THEN
+          sgn = 1.0D00
+        ELSEIF ((c.eq.':').or.(c.eq.',').or.(c.eq.' ')) THEN
+          j = j+1
+          dpfind = 0
+          IF (j.gt.3) GO TO 110
+        ELSEIF (c.eq.'.') THEN
+          dpfind = 1
+          dp = 1.0D00
+        ELSEIF ((c.ge.'0').and.(c.le.'9')) THEN
+          z = ICHAR(c)-ICHAR('0')
+          IF (dpfind.eq.0) THEN
+            piece(j) = 10.0D00*piece(j) + z
+          ELSE
+            dp = 0.1D00*dp
+            piece(j) = piece(j) + dp*z
+          ENDIF
+        ENDIF
+      ENDDO
+c
+c...Return
+c
+  110 val = piece(1) + piece(2)/60.0D00 + piece(3)/3600.0D00
+      val = val*sgn
+      RETURN
+      END
+
+c \subroutine{coord\_cart}
+

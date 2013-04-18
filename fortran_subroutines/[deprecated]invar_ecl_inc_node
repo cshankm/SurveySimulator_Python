@@ -1,0 +1,31 @@
+      subroutine invar_ecl_inc_node(ieqec, ii, noi, io, noo, ierr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine convert inclination and longitude of node elements back
+c and forth between invariable plane and ecliptic plane.
+c Uses invar_ecl_osc to do the work.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+ 
+      implicit none
+
+      real*8
+     $  ai, ei, ii, noi, pei, mi, ao, eo, io, noo, peo, mo,
+     $  iid, noid
+
+      integer*4
+     $  ieqec, ierr
+
+      data
+     $  ai /10.d0/,
+     $  ei /0.2d0/,
+     $  pei /0.d0/,
+     $  mi /0.d0/
+
+      iid = ii
+      noid = noi
+      call invar_ecl_osc (ieqec, ai, ei, iid, noid, pei, mi, ao, eo, io,
+     $  noo, peo, mo, ierr)
+
+      return
+      end
+

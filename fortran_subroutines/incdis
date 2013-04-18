@@ -1,0 +1,98 @@
+      subroutine incdis (seed, nparam, param, incmin, incmax, inc,
+     $  ierr, func)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine draws randomly an inclination according to probability
+c density \verb|func| with parameters \verb|param|.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : October 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     seed  : Random number generator seed (I4)
+c     nparam: Number of parameters (I4)
+c     param : Parameters (n*R4)
+c     incmin: Minimum inclination (R4)
+c     incmax: Maximum inclination (R4)
+c     func  : probability density function
+c
+c OUTPUT
+c     inc   : Inclination (R4)
+c     ierr  : Error code
+c                0 : nominal run
+c               10 : wrong input data
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in,out) seed
+Cf2py intent(in) nparam
+Cf2py real*4 intent(in), depend(nparam) :: param
+Cf2py intent(in) incmin
+Cf2py intent(in) incmax
+Cf2py intent(out) inc
+Cf2py intent(out) ierr
+
+      implicit none
+
+      integer
+     $  np
+
+      parameter
+     $  (np = 10000)
+
+      integer
+     $  ierr, seed, nparam, i, ilo, ihi
+
+      real*4
+     $  param(*), inc, proba(0:np), inctab(0:np), random, func,
+     $  incmin, incmax
+
+      real*4
+     $  ran3
+
+      logical
+     $  first
+
+      external
+     $  func, ran3
+
+      save proba, inctab, first
+
+      data first /.true./
+
+      ierr = 0
+      if (first) then
+         inctab(0) = incmin
+         proba(0) = 0.d0
+         do i = 1, np
+            inctab(i) = incmin + float(i)*(incmax-incmin)/float(np)
+            proba(i) = func(nparam, param, inctab(i)) + proba(i-1)
+         end do
+         do i = 1, np
+            proba(i) = proba(i)/proba(np)
+         end do
+         first = .false.
+      end if
+
+      random = ran3(seed)
+      ilo = 0
+      ihi = np
+ 1000 continue
+      if (ihi - ilo .gt. 1) then
+         i = (ihi + ilo)/2
+         if (proba(i) .lt. random) then
+            ilo = i
+         else if (proba(i) .gt. random) then
+            ihi = i
+         else
+            inc = inctab(i)
+            return
+         end if
+         goto 1000
+      end if
+      inc = inctab(ilo) + (inctab(ihi) - inctab(ilo))*
+     $  (random - proba(ilo))/(proba(ihi) - proba(ilo))
+
+      return
+      end
+

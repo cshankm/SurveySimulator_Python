@@ -1,0 +1,97 @@
+      subroutine ObsPos (code, t, pos, vel, r, ierr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine returns the cartesian coordinates of the observatory.
+c Reference frame : ICRF
+c Units : AU
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : September 2003
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     code  : Observatory code (I4)
+c              001 : GAIA
+c              002 : Geocentric, Mignard's code
+c              500 : Geocentric
+c     t     : Time of observation (Julian day, not MJD) (R8)
+c
+c OUTPUT
+c     pos   : Cartesian coordinates of observatory (AU) *(R8)
+c     vel   : Cartesian velocity of observatory (AU) *(R8)
+c     r     : Distance from observatory to Sun (AU) (R8)
+c     ierr  : Error code (I4)
+c                0 : nominal run
+c               10 : unknown observatory code
+c              100 : date of call earlier than xjdbeg
+c              200 : date of call later   than xjdend
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) code
+Cf2py intent(in) t
+Cf2py intent(out) pos
+Cf2py intent(out) vel
+Cf2py intent(out) r
+Cf2py intent(out) ierr
+
+      implicit none
+
+      integer*4
+     $  code, ierr, istat
+
+      real*8
+     $  pos(3), t, vel(3), km2AU, pos_b(3), vel_b(3), r
+
+      parameter
+     $  (km2AU = 149597870.691d0)
+
+      ierr = 0
+      if (code .eq. 1) then
+         ierr = 10
+         return
+      else if (code .eq. 2) then
+      else
+
+c Get heliocentric position of Earth.
+         call newcomb (t, pos)
+         pos(1) = -pos(1)
+         pos(2) = -pos(2)
+         pos(3) = -pos(3)
+         vel(1) = 0.d0
+         vel(2) = 0.d0
+         vel(3) = 0.d0
+
+c Now move to barycenter. First get barycenter position (ecliptic).
+         call BaryXV (t, pos_b, vel_b, istat)
+         if (ierr .ne. 0) then
+            write (6, *) 'Problem while getting barycenter position'
+         end if
+
+c Convert barycenter position to Equatorial.
+         call equat_ecl (-1, pos_b, pos_b, ierr)
+         if (ierr .ne. 0) then
+            write (6, *) 'Problem in conversion ecliptic -> equatorial'
+         end if
+         call equat_ecl (-1, vel_b, vel_b, ierr)
+         if (ierr .ne. 0) then
+            write (6, *) 'Problem in conversion ecliptic -> equatorial'
+         end if
+         pos(1) = pos(1) - pos_b(1)
+         pos(2) = pos(2) - pos_b(2)
+         pos(3) = pos(3) - pos_b(3)
+         vel(1) = vel(1) - vel_b(1)
+         vel(2) = vel(2) - vel_b(2)
+         vel(3) = vel(3) - vel_b(3)
+         if (code .eq. 500) then
+         else
+            ierr = 10
+            return
+         end if
+
+c Finally, computes distance from observatory to Sun.
+         r = dsqrt((pos(1) + pos_b(1))**2 + (pos(2) + pos_b(2))**2
+     $     + (pos(3) + pos_b(3))**2)
+      end if
+
+      end
+

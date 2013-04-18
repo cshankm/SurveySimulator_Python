@@ -1,0 +1,246 @@
+      subroutine incdism (seed, nparam, param, incmin, incmax, inc,
+     $  dist, ierr, func)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine draws randomly an inclination according to probability
+c density \verb|func| with parameters \verb|param|.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : October 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     seed  : Random number generator seed (I4)
+c     nparam: Number of parameters (I4)
+c     param : Parameters (n*R4)
+c     incmin: Minimum inclination (R4)
+c     incmax: Maximum inclination (R4)
+c     func  : probability density function
+c
+c OUTPUT
+c     inc   : Inclination (R4)
+c     ierr  : Error code
+c                0 : nominal run
+c               10 : wrong input data
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in,out) seed
+Cf2py intent(in) nparam
+Cf2py real*4 intent(in), depend(nparam) :: param
+Cf2py intent(in) incmin
+Cf2py intent(in) incmax
+Cf2py intent(in) dist
+Cf2py intent(out) inc
+Cf2py intent(out) ierr
+
+      implicit none
+
+      integer
+     $  np, nd
+
+      parameter
+     $  (np = 10000, nd = 10)
+
+      integer
+     $  ierr, seed, nparam, i, ilo, ihi, dist, di
+
+      real*4
+     $  param(*), inc, proba(0:np,nd), inctab(0:np,nd), random, func,
+     $  incmin, incmax
+
+      real*4
+     $  ran3
+
+      logical
+     $  first(nd)
+
+      external
+     $  func, ran3
+
+      save proba, inctab, first
+
+      data first /.true.,.true.,.true.,.true.,.true.,
+     $            .true.,.true.,.true.,.true.,.true./
+
+      ierr = 0
+      di = min(nd, dist)
+      if (first(di)) then
+         inctab(0,di) = incmin
+         proba(0,di) = 0.d0
+         do i = 1, np
+            inctab(i,di) = incmin + float(i)*(incmax-incmin)/float(np)
+            proba(i,di) = func(nparam, param, inctab(i,di))
+     $        + proba(i-1,di)
+         end do
+         do i = 1, np
+            proba(i,di) = proba(i,di)/proba(np,di)
+         end do
+         first(di) = .false.
+      end if
+
+      random = ran3(seed)
+      ilo = 0
+      ihi = np
+ 1000 continue
+      if (ihi - ilo .gt. 1) then
+         i = (ihi + ilo)/2
+         if (proba(i,di) .lt. random) then
+            ilo = i
+         else if (proba(i,di) .gt. random) then
+            ihi = i
+         else
+            inc = inctab(i,di)
+            return
+         end if
+         goto 1000
+      end if
+      inc = inctab(ilo,di) + (inctab(ihi,di) - inctab(ilo,di))*
+     $  (random - proba(ilo,di))/(proba(ihi,di) - proba(ilo,di))
+
+      return
+      end
+
+      real*4 function onecomp (nparam, param, inc)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine returns the unnormalized inclination "probability"
+c density of Brown.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : February 2007
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     nparam: Number of parameters (I4)
+c     param : Parameters (n*R4)
+c     inc   : Inclination (R4)
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) nparam
+Cf2py real*4 intent(in), depend(nparam) :: param
+Cf2py intent(in) inc
+
+      implicit none
+
+      integer
+     $  nparam
+
+      real*4
+     $  param(*), inc
+
+      real*4
+     $  Pi, TwoPi
+
+      parameter
+     $  (Pi = 3.14159265, TwoPi = 2.*Pi)
+
+      real*4
+     $  fe, s1, angle, t1, t3
+
+      if (nparam .ne. 1) stop
+      s1 = param(1)
+      angle = mod(inc, TwoPi)
+      if (angle .gt. Pi) angle = angle - TwoPi
+      t1 = 2.*s1**2
+      t3 = -angle**2
+      fe = exp(t3/t1)
+      onecomp = sin(inc)*fe
+
+      return
+      end
+
+      real*4 function onecompjmp (nparam, param, inc)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine returns the unnormalized inclination "probability"
+c density of Brown.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : February 2007
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     nparam: Number of parameters (I4)
+c     param : Parameters (n*R4)
+c     inc   : Inclination (R4)
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) nparam
+Cf2py real*4 intent(in), depend(nparam) :: param
+Cf2py intent(in) inc
+
+      implicit none
+
+      integer
+     $  nparam
+
+      real*4
+     $  param(*), inc
+
+      real*4
+     $  Pi, TwoPi
+
+      parameter
+     $  (Pi = 3.14159265, TwoPi = 2.*Pi)
+
+      real*4
+     $  fe, s1, angle, t1, t3
+
+      if (nparam .ne. 1) stop
+      s1 = param(1)
+      angle = mod(inc, TwoPi)
+      if (angle .gt. Pi) angle = angle - TwoPi
+      t1 = 2.*s1**2
+      t3 = -angle**2
+      fe = exp(t3/t1)
+      onecompjmp = sin(inc)**2*fe
+
+      return
+      end
+
+      real*4 function brownjmp(nparam, param, inc)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine returns the unnormalized inclination "probability"
+c density of Brown.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : October 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     nparam: Number of parameters (I4)
+c     param : Parameters (n*R4)
+c     inc   : Inclination (R4)
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) nparam
+Cf2py real*4 intent(in), depend(nparam) :: param
+Cf2py intent(in) inc
+
+      implicit none
+
+      integer
+     $  nparam
+
+      real*4
+     $  param(*), inc
+
+      real*4
+     $  fe, a, s1, s2
+
+      common /c_distrib/ a, s1, s2
+
+      if (nparam .ne. 3) stop
+      a = param(1)
+      s1 = param(2)
+      s2 = param(3)
+      call incecl1 (inc, fe)
+      brownjmp = sin(inc)*fe
+
+      return
+      end
+

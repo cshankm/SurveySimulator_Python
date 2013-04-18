@@ -1,0 +1,76 @@
+       subroutine Format (angle, incode, outcod, string, ierr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine formats an angle (in rd) into deg, min, sec or hour, min,
+c sec. Output is a string.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : September 2003
+c Version 2 : March 2004
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     angle : angle to format, radians (r8)
+c     incode: 1 input in radian; 0 input in decimal degrees (i)
+c     outcod: 1 converts to hours,min,sec; 0 converts to deg.,min,sec (i)
+c
+c OUTPUT
+c     string: Output string (CH)
+c                0 : nominal run
+c               10 : input data code
+c               20 : wrong conversion code
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+      implicit none
+
+      integer
+     $  deg, mn, ierr, incode, outcod, si
+
+      real*8
+     $  angle, sec, Pi, raddeg, rm, w
+
+      character
+     $  string*(*)
+
+      parameter
+     $  (Pi = 3.141592653589793d0, raddeg = 180.0d0/Pi)
+
+      ierr = 0
+      if (incode .eq. 1) then
+         w = angle*raddeg
+      else if (incode .eq. 0) then
+         w = angle
+      else
+         ierr = 10
+         return
+      end if
+      if (outcod .eq. 1) then
+         w = w/15.d0
+      else if (outcod .ne. 0) then
+         ierr = 20
+         return
+      end if
+      if (w .lt. 0.d0) then
+         si = -1
+         w = abs(w)
+      else
+         si = 1
+      end if
+      deg = int(w)
+      rm = (w - deg)*60.d0
+      mn = int(rm)
+      sec = (rm - mn)*60.d0
+      write (string, '(i4.2, 1x, i2.2, 1x, f5.2)') deg, mn, sec
+      if (si .eq. -1) then
+         if (deg .ge. 100) then
+            string(1:1) = '-'
+         else
+            string(2:2) = '-'
+         end if
+      end if
+      if (sec .lt. 10.) string(9:9) = '0'
+      deg = si*deg
+
+      return
+      end
+

@@ -1,0 +1,44 @@
+      subroutine invar_ecl_osc(ieqec, ai, ei, ii, noi, pei, mi,
+     $  ao, eo, io, noo, peo, mo, ierr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine convert osculating elements back and forth between
+c invariable plane and ecliptic plane.
+c Uses invar_ecl to do the work.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+ 
+      implicit none
+
+      real*8
+     $  ai, ei, ii, noi, pei, mi, ao, eo, io, noo, peo, mo,
+     $  posi(3), poso(3), veli(3), velo(3), mu, Pi, TwoPi, drad,
+     $  aid, eid, iid, noid, peid, mid
+
+      integer*4
+     $  ieqec, ierr
+
+      parameter
+     $  (Pi = 3.141592653589793d0, TwoPi = 2.d0*Pi, drad = Pi/180.d0,
+     $  mu = TwoPi**2)
+
+      aid = ai
+      eid = ei
+      iid = ii
+      noid = noi
+      peid = pei
+      mid = mi
+      call coord_cart (mu, aid, eid, iid, noid, peid, mid, posi(1),
+     $  posi(2), posi(3), veli(1), veli(2), veli(3))
+      call invar_ecl (ieqec, posi, poso, ierr)
+      call invar_ecl (ieqec, veli, velo, ierr)
+      call osc_el (mu, poso(1), poso(2), poso(3), velo(1), velo(2),
+     $  velo(3), ao, eo, io, noo, peo, mo)
+      call ztopi (io)
+      if (io .gt. Pi) io = io - Pi
+      call ztopi (noo)
+      call ztopi (peo)
+      call ztopi (mo)
+
+      return
+      end
+

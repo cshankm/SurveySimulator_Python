@@ -1,0 +1,74 @@
+      subroutine equat_ecl(ieqec,v_in,v_out,ierr)
+!
+!     Transformation of a vector v_in(3) from :
+!        equator to ecliptic  : irot = +1
+!        ecliptic to equator  : irot = -1
+!        at J2000.
+!     The equator is assumed to be the ICRF frame
+!     The ecliptic is the so called 'conventional ecliptic'
+!     going through the origin of the ICRF  with the obliquity
+!     epsilon = 23°26'21".410 = 84381".41
+!     It differs by ~ 50 mas from the inertial mean ecliptic(s) of J2000.
+!
+!     One can call equat_ecl(ieqec,vv,vv,ierr)
+!
+!     F. Mignard  OCA/CERGA
+!     Version 1 : April 2003
+!
+!***************************************************************
+! INPUT
+!     Ieqec    : +1 ==> from equator to ecliptic ; -1 from ecliptic to equator.
+!     v_in     :  input vector v_in(3) in the initial frame
+!
+! OUTPUT
+!     v_out    :  output vector in the final frame v_out(3)
+!     ierr     :  ierr = 0   :: normal exit
+!                 ierr = 100 :: error ieqec neither 1 or -1 . 
+!
+!***************************************************************
+Cf2py intent(in) ieqec
+Cf2py intent(in) v_in
+Cf2py intent(out) v_out
+Cf2py intent(out) ierr
+
+      implicit none
+
+      real*8
+     $  epsilon, v_in(3), v_out(3), ww(3), coseps, sineps, Pi, secrad
+
+c obliquity at J20000 in arcsec
+
+      parameter
+     $  (epsilon = 84381.41d0, Pi = 3.141592653589793238d0,
+     $  secrad = Pi/180.d0/3600.d0)
+
+      integer*4
+     $  ieqec, ierr
+
+      coseps = dcos(epsilon*secrad)
+      sineps = dsin(epsilon*secrad)
+
+c regular exit
+      ierr   = 0
+
+c to allow a call like ::  call equat_ecl(ieqec,vv,vv,ierr)
+      ww(1)  = v_in(1)
+      ww(2)  = v_in(2)
+      ww(3)  = v_in(3)
+
+      if (ieqec .eq. 1) then
+        v_out(1) =   ww(1)
+        v_out(2) =   coseps*ww(2) + sineps*ww(3)
+        v_out(3) = - sineps*ww(2) + coseps*ww(3)
+      else if (ieqec .eq. -1) then
+        v_out(1) =   ww(1)
+        v_out(2) =   coseps*ww(2) - sineps*ww(3)
+        v_out(3) =   sineps*ww(2) + coseps*ww(3)
+      else
+c anomalous exit ieqec not allowed
+        ierr     =   100
+      end if
+
+      return
+      end
+

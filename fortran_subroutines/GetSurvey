@@ -1,0 +1,188 @@
+      subroutine GetSurvey (survey, lun_s, n_max, nb_max, n_sur, sur_w,
+     $  sur_h, sur_ra, sur_de, sur_t, sur_ff, sur_tr, sur_co, sur_x,
+     $  sur_y, sur_z, sur_r, sur_t2, sur_x2, sur_y2, sur_z2, sur_r2,
+     $  sur_ef, sur_en, sur_eb, sur_em, sur_mm, sur_rn, sur_rx, sur_an,
+     $  sur_aw, sur_tm, sur_ts, sur_dm, faint, ierr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine reads in a survey description.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : February 2004
+c Version 2 : October 2004
+c Version 3 : January 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     survey: Survey directory name (CH)
+c     lun_s : Logical unit for file (I4)
+c     n_max : Maximum number of pointings to read (I4)
+c     nb_max: Maximum number of bin in efficiency function (I4)
+c
+c OUTPUT
+c     n_sur : Number of pointings read (I4)
+c     sur_w : Width of FOV (n*R8)
+c     sur_h : Height of FOV (n*R8)
+c     sur_ra: RA of pointing (n*R8)
+c     sur_de: DEC of pointing (n*R8)
+c     sur_t : Time of pointing (n*R8)
+c     sur_ff: Filling factor (n*R8)
+c     sur_tr: Fraction of objects followed beyond discovery (n*R8)
+c     sur_co: Observatory code (n*I4)
+c     sur_x : ICRF x coordinate of observatory (n*R8)
+c     sur_y : ICRF y coordinate of observatory (n*R8)
+c     sur_z : ICRF z coordinate of observatory (n*R8)
+c     sur_r : Distance from observatory to Sun (n*R8)
+c     sur_t2: Time of pointing 2 hours later (n*R8)
+c     sur_x2: ICRF x coordinate of observatory 2 hours later (n*R8)
+c     sur_y2: ICRF y coordinate of observatory 2 hours later (n*R8)
+c     sur_z2: ICRF z coordinate of observatory 2 hours later (n*R8)
+c     sur_r2: Distance from observatory to Sun 2 hours later (n*R8)
+c     sur_ef: Name of efficiency function file (n*CH80)
+c     sur_en: Number of bins in efficiency function (n*I4)
+c     sur_eb: Bin centers for efficiency function (nb_max,n*R8)
+c     sur_em: Efficiency at bin center (nb_max,n*R8)
+c     sur_mm: Limiting magnitude for each survey (n*R8)
+c     sur_rn: Lower rate cut (n*R8)
+c     sur_rx: Upper rate cut (n*R8)
+c     sur_an: Mean direction of motion (n*R8)
+c     sur_aw: Half-width of direction cone (n*R8)
+c     sur_tm: Tracking fraction magnitude intercept (n*R8)
+c     sur_ts: Tracking fraction magtnidue slope (n*R8)
+c     sur_dm: Magnitude error parameters (4,n*R8)
+c     faint : Overall limiting magnitude for all surveys (R8)
+c     ierr  : Error code (I4)
+c                0 : nominal run
+c              100 : Maximum number of objects reached
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+      implicit none
+
+      integer*4
+     $  n_max, nb_max
+
+      real*8
+     $  sur_w(*), sur_h(*), sur_ra(*), sur_de(*), sur_t(*),
+     $  sur_ff(*), sur_x(*), sur_y(*), sur_z(*), sur_r(*),
+     $  sur_t2(*), sur_x2(*), sur_y2(*), sur_z2(*), sur_r2(*),
+     $  sur_eb(nb_max,*), sur_em(nb_max,*), sur_tr(*), width, height,
+     $  ra_p, dec_p, jday_p, ff, obspos(3), ros, eff_b(nb_max),
+     $  eff_m(nb_max), sur_mm(nb_max), sur_rn(*), sur_rx(*), sur_an(*),
+     $  sur_aw(*), sur_tm(*), sur_ts(*), sur_dm(4,*), 
+     $  faint, eta, track, obspos2(3), ros2,
+     $  jday_p2, r_min, r_max, ang, ang_w, d_mag(4), rate,
+     $  track_mag, track_slope
+
+      integer*4
+     $  sur_co(*), sur_en(*), eff_n, code, i, lun_s, n_sur, ierr, i1, i2
+
+      character
+     $  survey*100, sur_ef(*)*100, eff_name*100
+
+      logical
+     $  finished
+
+      external eta
+
+c Open and read in survey definitions
+      call read_file_name (survey, i1, i2, finished, len(survey))
+      n_sur = 0
+      faint = 0.d0
+ 200  continue
+         call read_sur (survey(i1:i2), lun_s, width, height, ra_p,
+     $     dec_p, jday_p, ff, track, code, obspos, ros, jday_p2,
+     $     obspos2, ros2, eff_name, eff_n, eff_b, eff_m, r_min, r_max,
+     $     ang, ang_w, track_mag, track_slope, d_mag, ierr)
+
+         if (ierr .ne. 0) then
+            if (ierr .eq. 10) then
+               write (6, *)
+     $           'Unable to open '//survey(i1:i2)//'/pointings.list'
+            else if (ierr .eq. 20) then
+               write (6, *) 'Error reading '//survey
+               write (6, *) 'Survey number: ', n_sur
+               goto 200
+            else if (ierr .eq. 30) then
+               goto 210
+            else
+               write (6, *) 'Unknown return code in read_obj.'
+            end if
+            stop
+         end if
+
+         n_sur = n_sur + 1
+         sur_w(n_sur) = width
+         sur_h(n_sur) = height
+         sur_ra(n_sur) = ra_p
+         sur_de(n_sur) = dec_p
+         sur_t(n_sur) = jday_p
+         sur_ff(n_sur) = ff
+         sur_tr(n_sur) = track
+         sur_co(n_sur) = code
+         sur_x(n_sur) = obspos(1)
+         sur_y(n_sur) = obspos(2)
+         sur_z(n_sur) = obspos(3)
+         sur_r(n_sur) = ros
+         sur_t2(n_sur) = jday_p2
+         sur_x2(n_sur) = obspos2(1)
+         sur_y2(n_sur) = obspos2(2)
+         sur_z2(n_sur) = obspos2(3)
+         sur_r2(n_sur) = ros2
+         sur_rn(n_sur) = r_min
+         sur_rx(n_sur) = r_max
+         sur_an(n_sur) = ang
+         sur_aw(n_sur) = ang_w
+         sur_tm(n_sur) = track_mag
+         sur_ts(n_sur) = track_slope
+         do i = 1, 4
+            sur_dm(i,n_sur) = d_mag(i)
+         end do
+         sur_ef(n_sur) = eff_name
+         sur_en(n_sur) = eff_n
+c         write (6, *) 'Survey number: ', n_sur
+c         write (6, *) sur_w(n_sur), sur_h(n_sur), sur_ra(n_sur),
+c     $     sur_de(n_sur)
+c         write (6, *) sur_t(n_sur), sur_ff(n_sur), sur_co(n_sur)
+c         write (6, *) sur_x(n_sur), sur_y(n_sur), sur_z(n_sur),
+c     $     sur_r(n_sur)
+c         write (6, *) sur_ef(n_sur), sur_en(n_sur)
+         if (eff_n .gt. 0) then
+            do i = 1, eff_n
+               sur_eb(i,n_sur) = eff_b(i)
+               sur_em(i,n_sur) = eff_m(i)
+c               write (6, *) i, sur_eb(i,n_sur), sur_em(i,n_sur)
+            end do
+            sur_mm(n_sur) = eff_b(eff_n)
+         else if (eff_n .eq. -1) then
+            do i = 1, 3
+               sur_em(i,n_sur) = eff_m(i)
+            end do
+         else if (eff_n .eq. -2) then
+            do i = 1, 4
+               sur_em(i,n_sur) = eff_m(i)
+            end do
+         else if (eff_n .eq. -3) then
+            do i = 1, 3
+               sur_em(i,n_sur) = eff_m(i)
+            end do
+         else
+            write (6, *) 'Got efficiency function type ', eff_n
+            write (6, *) 'Should be >0, -1 or -2.'
+            stop 'Something is wrong with this. Aborting.'
+         end if
+         if (eff_n .lt. 0) then
+            do i = 1, 300
+               ff = 40.d0 - dble(i)/10.d0
+               ros = eta(eff_n, eff_b, eff_m, ff, rate)
+               if (ros .eq. 0.d0) sur_mm(n_sur) = ff
+            end do
+         end if
+c         write (50, *) n_sur, sur_mm(n_sur)
+         if (sur_mm(n_sur) .gt. faint) faint = sur_mm(n_sur)
+         goto 200
+ 210  continue
+c      write (6, *) 'Faintest magnitude = ', faint
+
+      return
+      end
+

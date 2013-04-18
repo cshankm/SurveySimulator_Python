@@ -1,0 +1,148 @@
+      subroutine pos_cart (a, ecc, inc, capo, smallo, capm,
+     $  x, y, z)
+
+c This routine transforms delaunay variables into cartisian
+c variables, positions only.
+c
+c \subsection{Arguments}
+c \subsubsection{Definitions}
+c \begin{verse}
+c \verb|a, e, inc, capo, smallo, capm| = osculating elements \\
+c \verb|x, y, z| = cartesian variables: $X, Y, Z$
+c \end{verse}
+c
+c \subsubsection{Declarations}
+c
+Cf2py intent(in) a
+Cf2py intent(in) ecc
+Cf2py intent(in) inc
+Cf2py intent(in) capo
+Cf2py intent(in) smallo
+Cf2py intent(in) capm
+Cf2py intent(out) x
+Cf2py intent(out) y
+Cf2py intent(out) z
+
+      implicit none
+
+      real*8
+     $  a, ecc, inc, capo, smallo, capm, x, y, z
+
+c \subsection{Variables}
+c \subsubsection{Definitions}
+c \begin{verse}
+c \verb|cos_e, sin_e, cos_i, sin_i| = sinus and cosines of $E$ and
+c      $i$ \\
+c \verb|delau| = Delaunay variables: $l, \cos(g), \sin(g), \cos(h),
+c      \sin(h), L, G, H$ \\
+c \verb|e| = eccentric anomaly \\
+c \verb|mat| = rotation matrix \\
+c \verb|q_vec| = $q$ \\
+c \end{verse}
+c
+c \subsubsection{Declarations}
+
+      integer*4
+     $  i
+
+      real*8
+     $  delau(8), cos_e, cos_i, e, mat(3,3), q_vec(2),
+     $  sin_e, sin_i, signe, Pi, TwoPi, f, de, fp, fpp, fppp
+
+      parameter
+     $  (Pi = 3.141592653589793238d0, TwoPi = 2.d0*Pi)
+
+c Computation of sinus and cosines of angles.
+
+      signe = 1.d0
+      if (a .lt. 0.d0) signe = -1.d0
+      cos_i = dcos(inc)
+      sin_i = dsqrt(1.d0 - cos_i**2)
+      delau(2) = dcos(smallo)
+      delau(3) = dsin(smallo)
+      delau(4) = dcos(capo)
+      delau(5) = dsin(capo)
+      delau(1) = capm - int(capm/TwoPi)*TwoPi
+      delau(6) = signe*dsqrt(a*signe)
+      delau(7) = abs(delau(6))*dsqrt((1.d0 - ecc**2)*signe)
+
+c Rotation matrix.
+c The rotation matrix is the composition of 3 matrices: $R_{xq} =
+c  R_3(-h) \cdot R_1(-i) \cdot R_3(-g)$:
+c \begin{displaymath}
+c     R_{xq} = \left(\matrix{
+c       \cos(h)\cos(g)-\frac{H}{G}\sin(h)\sin(g)&
+c       -\cos(h)\sin(g)-\frac{H}{G}\sin(h)\cos(g)&
+c       \sqrt{1-\frac{H^2}{G^2}}\sin(h) \cr
+c       \sin(h)\cos(g)+\frac{H}{G}\cos(h)\sin(g)&
+c       -\sin(h)\sin(g)+\frac{H}{G}\cos(h)\cos(g)&
+c       -\sqrt{1-\frac{H^2}{G^2}}\cos(h) \cr
+c       \sqrt{1-\frac{H^2}{G^2}}\sin(g)&
+c       \sqrt{1-\frac{H^2}{G^2}}\cos(g)&
+c       \frac{H}{G} \cr}\right);
+c \end{displaymath}
+
+      mat(1,1) = delau(4)*delau(2) - cos_i*delau(5)*delau(3)
+      mat(1,2) = -delau(4)*delau(3) - cos_i*delau(5)*delau(2)
+      mat(2,1) = delau(5)*delau(2) + cos_i*delau(4)*delau(3)
+      mat(2,2) = -delau(5)*delau(3) + cos_i*delau(4)*delau(2)
+      mat(3,1) = sin_i*delau(3)
+      mat(3,2) = sin_i*delau(2)
+
+c Eccentric anomaly.
+c We solve iteratively the equation:
+c \begin{displaymath}
+c     E - e \sin(E) = l
+c \end{displaymath}
+c using the accelerated Newton's method (see Danby).
+
+      e = delau(1) + sign(.85d0, dsin(delau(1)))*ecc
+      i = 0
+ 1000 continue
+      sin_e = ecc*dsin(e)
+      f = e - sin_e - delau(1)
+      if (dabs(f) .gt. 1.d-14) then
+         cos_e = ecc*dcos(e)
+         fp = 1.d0 - cos_e
+         fpp = sin_e
+         fppp = cos_e
+         de = -f/fp
+         de = -f/(fp + de*fpp/2.d0)
+         de = -f/(fp + de*fpp/2.d0 + de*de*fppp/6.d0)
+         e = e + de
+         i = i + 1
+         if (i .lt. 20) goto 1000
+         write (6, *) 'POS_CART: No convergence: ', i, f
+         write (6, *) e, de
+         write (6, *) a, ecc, inc
+         write (6, *) capo, smallo, capm
+         stop
+      end if
+ 1100 continue
+
+c Coordinates relative to the orbit.
+c The cartisian coordinate are given by $\vec X = R_{xq} \vec q$
+c and $\vec P = R_{xq} \dot{\vec q}$, where:
+c \begin{eqnarray*}
+c     \vec q & = & \left(\frac{L^2}{\mu}(\cos(E) - e),
+c                        \frac{GL}{\mu}\sin(E), 0\right), \\
+c     \dot{\vec q} & = & \frac{\mu}{L(1 - e\cos(E))}
+c                  \left(-\sin(E), \frac{G}{L}\cos(E), 0\right)
+c \end{eqnarray*}
+
+      cos_e = dcos(e)
+      sin_e = dsin(e)
+      q_vec(1) = delau(6)**2*(cos_e - ecc)
+      q_vec(2) = delau(7)*delau(6)*sin_e
+
+c Cartisian coordinates
+
+      x = mat(1,1)*q_vec(1) + mat(1,2)*q_vec(2)
+      y = mat(2,1)*q_vec(1) + mat(2,2)*q_vec(2)
+      z = mat(3,1)*q_vec(1) + mat(3,2)*q_vec(2)
+
+      return
+      end
+
+c \subroutine{osc\_el}
+

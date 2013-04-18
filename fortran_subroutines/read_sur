@@ -1,0 +1,217 @@
+      subroutine read_sur (dirn, lun_in, w, h, ra, dec, jday,
+     $  ff, track, code, pos, r, jday2, pos2, r2, efnam, eff_n, eff_b,
+     $  eff_m, ra_min, ra_max, angle, angl_w, track_maga,
+     $  track_slopea, d_mag, ierr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine opens and reads in the survey description file.
+c Angles are returned in radian.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : February 2004
+c Version 2 : October 2004
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     dirn  : Name of directory with survey definition (CH)
+c     lun_in: File unit (I4)
+c
+c OUTPUT
+c     w     : field of view width (R8)
+c     h     : field of view height (R8)
+c     ra    : Pointing RA (R8)
+c     dec   : Pointing DEC (R8)
+c     jday  : Time of pointing (R8)
+c     ff    : Filling factor (R8)
+c     track : Fraction of objects followed beyond discovery (R8)
+c     code  : Observatory code (I4)
+c     pos   : Observatory position (3*R8)
+c     r     : Observatory distance to Sun (R8)
+c     jday2 : Time of pointing 2 hours later (R8)
+c     pos2  : Observatory position 2 hours later (3*R8)
+c     r2    : Observatory distance to Sun 2 hours later (R8)
+c     efnam : Efficiency file name (CH)
+c     eff_n : Number of bins in efficiency (I4)
+c     eff_b : efficiency center of bins (n*R8)
+c     eff_m : efficiency of corresponding bin (n*R8)
+c     ra_min: Lower rate cut (R8)
+c     ra_max: Upper rate cut (R8)
+c     angle : Mean direction of motion (R8)
+c     angl_w: Half-width of direction cone (R8)
+c     track_mags : mag
+c     d_mag : Magnitude error parameters (4*R8)
+c     ierr  : Error code
+c                0 : nominal run
+c               10 : unable to open filen
+c               20 : error reading record
+c               30 : end of file reached
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+
+      implicit none
+
+      real*8
+     $  w, h, ra, dec, ff, pos(3), eff_b(*), eff_m(*), Pi, drad, jday,
+     $  bin, eff, r, vel(3), track, TwoHours, pos2(3), r2, jday2,
+     $  r_min, r_max, ang, ang_w, track_mag, track_slope,
+     $  ra_min, ra_max, angle, angl_w, track_maga, track_slopea,
+     $  d_mag(4), mag_err(4)
+
+      integer*4
+     $  nw_max
+
+      parameter
+     $  (Pi = 3.141592653589793d0, drad = Pi/180.0D0, nw_max = 10,
+     $  TwoHours = 2.d0/24.d0)
+
+      integer
+     $  lun_in, ierr, j, code, eff_n, nw, lw(nw_max), lun_e, ierr_e,
+     $  i1, i2, i3, i4
+
+      character
+     $  line*100, dirn*100, efnam*100, word(nw_max)*80
+
+      logical
+     $  opened, finished
+
+      common /rate_cut/ r_min, r_max, ang, ang_w
+      common /track_frac/ track_mag, track_slope
+      common /mag_error/ mag_err
+
+      data opened /.false./
+
+      save opened
+
+      call read_file_name (dirn, i1, i2, finished, len(dirn))
+      ierr = 0
+      lun_e = lun_in + 1
+      if (.not. opened) then
+         open (unit=lun_in, file=dirn(i1:i2)//'/pointings.list',
+     $     status='old', err=1000)
+         opened = .true.
+      end if
+ 1500 continue
+      do j = 1, len(line)
+         line(j:j) = ' '
+      end do
+      read (lun_in, '(a)', err=2000, end=3000) line
+      if (line(1:1) .eq. '#') goto 1500
+      call parse (line, nw_max, nw, word, lw)
+      if (nw .lt. 9) goto 2000
+      read (word(1), *, err=2000) w
+      w = w*drad/2.d0
+      read (word(2), *, err=2000) h
+      h = h*drad/2.d0
+      j = index(word(3), ':')
+      if (j .le. 0) then
+         read (word(3), *, err=2000) ra
+      else
+         call hms (word(3), ra)
+         ra = ra*15.d0
+      end if
+      ra = ra*drad
+      call hms (word(4), dec)
+      dec = dec*drad
+      read (word(5), *, err=2000) jday
+      read (word(6), *, err=2000) ff
+      read (word(7), *, err=2000) track
+      read (word(8), *, err=2000) code
+
+c USE OF SLALIB: need to get longitude, latitude and elevation of
+c observatory. This is given by the sla_OBS routine. One then needs to
+c get the LST (see documentation on EXPLANATION AND EXAMPLES:
+c Ephemerides).
+
+      efnam = word(9)
+      call read_file_name (efnam, i3, i4, finished, len(efnam))
+
+c Open and read in efficiency function
+      eff_n = 0
+ 1600 continue
+         call read_eff (dirn(i1:i2)//'/'//efnam, lun_e, bin, eff,
+     $     ierr_e)
+
+         if (ierr_e .ne. 0) then
+            if (ierr_e .eq. 10) then
+               write (6, *) 'Unable to open '//word(9)
+               goto 2000
+            else if (ierr_e .eq. 20) then
+               write (6, *) 'Error reading '//word(9)
+               write (6, *) 'Efficiency line number: ', eff_n
+               goto 1600
+            else if (ierr_e .eq. 30) then
+               goto 1610
+            else if (ierr_e .lt. 0) then
+               eff_n = ierr_e
+               goto 1610
+            else
+               write (6, *) 'Unknown return code in read_sur.'
+            end if
+            stop
+         end if
+
+         eff_n = eff_n + 1
+         eff_b(eff_n) = bin
+         eff_m(eff_n) = eff
+         goto 1600
+ 1610 continue
+
+c Get rid of unused bins at high magnitude
+      if (eff_n .gt. 0) then
+         j = eff_n
+ 1700    continue
+         if (eff_m(j) .le. 0.d0) then
+            j = j - 1
+            goto 1700
+         end if
+         eff_n = amin0(j+1, eff_n)
+      end if
+
+c Computes observatory position at given jday, in ICRF
+      call ObsPos (code, jday, pos, vel, r, ierr_e)
+      if (ierr_e .ne. 0) then
+         write (6, *) 'Error while computing observatory''s position.'
+         write (6, *) 'ierr = ', ierr_e
+         goto 2000
+      end if
+
+c The same, 2 hours later
+      jday2 = jday + TwoHours
+      call ObsPos (code, jday2, pos2, vel, r2, ierr_e)
+      if (ierr_e .ne. 0) then
+         write (6, *) 'Error while computing observatory''s position.'
+         write (6, *) 'ierr = ', ierr_e
+         goto 2000
+      end if
+
+c Return also rate cut
+      ra_min = r_min
+      ra_max = r_max
+      angle = ang
+      angl_w = ang_w
+      track_maga = track_mag
+      track_slopea=track_slope
+
+c And magnitude uncertainty parameters
+      do j = 1, 4
+         d_mag(j) = mag_err(j)
+      end do
+
+      return
+
+ 1000 continue
+      ierr = 10
+      return
+
+ 2000 continue
+      ierr = 20
+      return
+
+ 3000 continue
+      ierr = 30
+      close (lun_in)
+      opened = .false.
+      return
+
+      end
+

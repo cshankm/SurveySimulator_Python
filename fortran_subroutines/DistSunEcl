@@ -1,0 +1,53 @@
+      subroutine DistSunEcl (jday, pos, r)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine computes distance from object defined by barycentric
+C ecliptic coordinates to Sun at given jday.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : February 2004
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     jday  : Time (R8)
+c     pos   : Object barycentric ecliptic cartsian coordinates (3*R8)
+c
+c OUTPUT
+c     r     : Distance from object to Sun (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) jday
+Cf2py intent(in) pos
+Cf2py intent(out) r
+
+      implicit none
+
+      real*8
+     $  jday, pos(3), pos_b(3), vel_b(3), r, jday_b
+
+      integer*4
+     $  ierr
+
+      logical
+     $  done
+
+      data
+     $  done /.false./
+
+      save done, pos_b, vel_b, jday_b
+
+      if ((.not. done) .or. (jday .ne. jday_b)) then
+         call BaryXV (jday, pos_b, vel_b, ierr)
+         if (ierr .ne. 0) then
+            write (6, *) 'Problem while getting barycenter position'
+         end if
+         done = .true.
+         jday_b = jday
+      end if
+
+      r = dsqrt((pos(1) + pos_b(1))**2 + (pos(2) + pos_b(2))**2
+     $  + (pos(3) + pos_b(3))**2)
+      return
+
+      end
+

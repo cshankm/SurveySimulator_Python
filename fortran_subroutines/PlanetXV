@@ -1,0 +1,91 @@
+      subroutine PlanetXV (ind, jday, pos, vel, ierr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine gives the position and velocity in ecliptic heliocentric
+c reference frame of a planet at a given time. Uses PlanetElem.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : February 2004
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     ind   : Planet index (I4)
+c                1 : Mercury
+c                2 : Venus
+c                3 : Earth
+c                4 : Mars
+c                5 : Jupiter
+c                6 : Saturn
+c                7 : Uranus
+c                8 : Neptune
+c     jday  : Time of elements (Julian day) (R8)
+c
+c OUTPUT
+c     pos   : Position vector (3*R8)
+c     vel   : Velocity vector (3*R8)
+c     ierr  : Error code (I4)
+c                0 : nominal run
+c               10 : Unknown planet index
+c               20 : jday out of range
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) ind
+Cf2py intent(in) jday
+Cf2py intent(out) pos
+Cf2py intent(out) vel
+Cf2py intent(out) ierr
+
+      implicit none
+
+      real*8
+     $  jday, pos(3), vel(3), Pi, TwoPi, jday_min,
+     $  jday_max, drad, mu
+
+      integer*4
+     $  ind, ierr, n_planets, istat
+
+      parameter
+     $  (Pi = 3.141592653589793d0, TwoPi = 2.d0*Pi, drad = Pi/180.d0,
+     $  jday_min = 2415020.0, jday_max = 2488070.0, n_planets = 8,
+     $  mu = TwoPi**2)
+
+      real*8
+     $  a, e, inc, node, peri, capm, masses(n_planets), gm
+
+      data masses /6023600.0d0,    ! Mercury
+     $              408523.7d0,    ! Venus
+     $              328900.56d0,   ! Earth + Moon
+     $             3098708.0d0,    ! Mars
+     $                1047.349d0,  ! Jupiter
+     $                3497.898d0,  ! Saturn
+     $               22902.98d0,   ! Uranus
+     $               19412.24d0/   ! Neptune
+
+      ierr = 0
+
+c Wrong planet index.
+      if ((ind .lt. 1) .or. (ind .gt. n_planets)) then
+         ierr = 10
+         return
+      end if
+
+c Jday out of range.
+      if ((jday .lt. jday_min) .or. (jday .gt. jday_max)) then
+         ierr = 20
+         return
+      end if
+
+c Ok, do the math.
+      call PlanetElem (ind, jday, a, e, inc, node, peri, capm, istat)
+      if (istat .ne. 0) then
+         ierr = istat
+         return
+      end if
+      gm = mu*(1.d0 + 1.d0/masses(ind))
+      call coord_cart (gm, a, e, inc, node, peri, capm, pos(1), pos(2),
+     $  pos(3), vel(1), vel(2), vel(3))
+
+      return
+
+      end
+

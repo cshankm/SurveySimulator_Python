@@ -1,0 +1,243 @@
+	subroutine dgauss (i, y)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine gives a random value with gaussian probability, with 0
+c mean and standard deviation 1.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : January 1990
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     i     : Seed for random number generator (I4)
+c
+c OUTPUT
+c     y     : Random value (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in,out) i
+Cf2py intent(out) y
+
+	integer*4
+     1	  compte,
+     1	  i
+
+	real*8
+     1	  pi,
+     1	  x1, x2,
+     1	  y, y1, y2
+
+        real*4
+     $    ran3
+
+        external ran3
+
+	data
+     1	  compte	/0/,
+     1	  pi		/3.14159265358979d0/
+
+	save x1, x2, compte, pi
+
+c        write (80, '(i2)') compte
+	if (compte.eq.0) then
+	    y1=dble(ran3(i))
+	    y2=dble(ran3(i))
+c            write (80, '(2(f8.6, 1x))') y1, y2
+	    y1=dsqrt(-2.*dlog(y1))
+	    y2=2.*pi*y2
+	    x1=y1*dcos(y2)
+	    x2=y1*dsin(y2)
+	    compte=1
+	    y=x1
+	else
+	    compte=0
+	    y=x2
+	end if
+c        write (80, '(f8.4)') y
+
+	return
+	end
+
+      real*8 function eta_raw (eff_n, eff_b, eff_m, mdum, rdum)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine computes the efficiency at a given magnitude.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : April 2004
+c Version 2 : July 2004
+c             Added 3 different types of efficiency functions, namely a
+c             single and a double hyperbolic tangent, and a piecewise
+c             linear function.
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     eff_n : Number of efficiency bins (I4)
+c     eff_b : Magnitude bin center (n*R8)
+c     eff_m : Efficiency for that magnitude (n*R8)
+c     mdum  : magnitude (R8)
+c     rdum  : rate of motion (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+
+      implicit none
+
+      integer*4
+     $  ilo, ihi, i, eff_n
+
+      real*8
+     $  m, x, tanh, eff_b(*), eff_m(*), mdum, rdum
+
+      tanh(x) = (exp(x) - exp(-x))/(exp(x) + exp(-x))
+
+      m = dmax1(0.d0, mdum)
+
+c This is the direct piecewise linear function from a lokup table
+      if (eff_n .gt. 0) then
+
+c If off bins, then flat continuation.
+         if (m .lt. eff_b(1)) then
+            eta_raw = eff_m(1)
+            return
+         else if (m .gt. eff_b(eff_n)) then
+            eta_raw = 0.d0
+            return
+         else
+
+c Linear interpolation of table.
+            ilo = 1
+            ihi = eff_n
+ 1000       continue
+            if (ihi - ilo .gt. 1) then
+               i = (ihi + ilo)/2
+               if (eff_b(i) .lt. m) then
+                  ilo = i
+               else if (eff_b(i) .gt. m) then
+                  ihi = i
+               else
+                  eta_raw = eff_m(i)
+                  return
+               end if
+               goto 1000
+            end if
+            eta_raw = eff_m(ilo) + (eff_m(ihi) - eff_m(ilo))*
+     $        (m - eff_b(ilo))/(eff_b(ihi) - eff_b(ilo))
+         end if
+
+c This is a single hyperbolic tangent function.
+c \begin{equation}
+c (A/2) * (1. - tanh((R-R_c)/d))
+c \end{equation}
+      else if (eff_n .eq. -1) then
+         eta_raw = eff_m(1)/2.d0 *
+     $     (1.d0 - tanh((m - eff_m(2))/eff_m(3)))
+
+c This is a double hyperbolic tangent function.
+c \begin{equation}
+c (A/4) * (1. - tanh((R-R_c)/d1)) * (1. - tanh((R-R_c)/d2))
+c \end{equation}
+      else if (eff_n .eq. -2) then
+         eta_raw = eff_m(1)/4.d0 *
+     $     (1.d0 - tanh((m - eff_m(2))/eff_m(3))) * 
+     $     (1.d0 - tanh((m - eff_m(2))/eff_m(4)))
+
+c This is a piecewize linear function.
+c \begin{eqnarray}
+c A & {\rm if} & m < R_1 \\
+c \frac{(m - R_2) A}{R_1 - R_2} & {\rm if} & R_1 \le m < R_2 \\
+c 0 & {\rm if} & m \ge R_2
+c \end{eqnarray}
+      else if (eff_n .eq. -3) then
+         if (m .lt. eff_m(2)) then
+            eta_raw = eff_m(1)
+         else if (m .lt. eff_m(3)) then
+            eta_raw = (m - eff_m(3))*eff_m(1)/
+     $        (eff_m(2) - eff_m(3))
+         else
+            eta_raw = 0.d0
+         end if
+
+c Unsupported efficiency function type.
+      else
+         write (6, *) 'Got efficiency function type ', eff_n
+         write (6, *) 'Should be >0, -1, -2 or -3.'
+         stop 'Something is wrong with this. Aborting.'
+      end if
+
+      return
+      end
+
+      real*8 function eta_trust (eff_n, eff_b, eff_m, mdum, rdum)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine computes the efficiency at a given magnitude, keeping
+c only the part that can be trusted for actual detectability of the
+c theoretical magnitude ($\eta > 0.01$).
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : October 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     eff_n : Number of efficiency bins (I4)
+c     eff_b : Magnitude bin center (n*R8)
+c     eff_m : Efficiency for that magnitude (n*R8)
+c     mdum  : magnitude (R8)
+c     rdum  : rate of motion (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+
+      implicit none
+
+      integer*4
+     $  eff_n
+
+      real*8
+     $  eta_raw, eff_b(*), eff_m(*), mdum, rdum
+
+      external
+     $  eta_raw
+
+      eta_trust = eta_raw(eff_n, eff_b, eff_m, mdum, rdum)
+      if (eta_trust .lt. 0.2d0) eta_trust = 0.d0
+
+      return
+      end
+
+      real*8 function eta (eff_n, eff_b, eff_m, mdum, rdum)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine computes the efficiency at a given magnitude, keeping
+c only the part that can be trusted for actual detectability of the
+c theoretical magnitude ($\eta > 0.4$).
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : October 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     eff_n : Number of efficiency bins (I4)
+c     eff_b : Magnitude bin center (n*R8)
+c     eff_m : Efficiency for that magnitude (n*R8)
+c     mdum  : magnitude (R8)
+c     rdum  : rate of motion (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+
+      implicit none
+
+      integer*4
+     $  eff_n
+
+      real*8
+     $  eta_raw, eff_b(*), eff_m(*), mdum, rdum
+
+      external
+     $  eta_raw
+
+      eta = eta_raw(eff_n, eff_b, eff_m, mdum, rdum)
+      if (eta .lt. 0.4d0) eta = 0.d0
+
+      return
+      end
+

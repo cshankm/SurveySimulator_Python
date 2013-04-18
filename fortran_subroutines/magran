@@ -1,0 +1,52 @@
+      subroutine magran (mag_t, mag_er, seed, mag, magerr)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine gives a randomized value of the magnitude given the
+c theoretical magnitude and parameters to compute the uncertainty.
+c
+c Version 2
+c This works for uncertainties given by the measurement on 1 frame only.
+c Shouldn't try to combine several frame to estimate the error as this
+c mostly account for zeropoint uncertainty and lightcurve.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : January 2006
+c Version 2 : October 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     mag_t : Theoretical magnitude of object (R8)
+c     mag_er: Magnitude error parameters (4,n*R8)
+c     seed  : Seed for random number generator (I4)
+c
+c OUTPUT
+c     mag   : Randomized magnitude (R8)
+c     magerr: Magnitude uncertainty (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) mag_t
+Cf2py intent(in) mag_er
+Cf2py intent(in,out) seed
+Cf2py intent(out) mag
+Cf2py intent(out) magerr
+
+      implicit none
+
+      real*8
+     $  mag_t, mag_er(*), magerr, mag, tmp, mag_th
+
+      integer*4
+     $  seed
+
+      mag_th = mag_t
+c      magerr = min(dexp(mag_er(1) + mag_th*mag_er(2)), 1.d0)
+      magerr = min(mag_er(1)*10.d0**((mag_th-mag_er(2))/2.5d0), 0.5d0)
+      call dgauss(seed, tmp)
+      magerr = magerr*tmp
+      mag = mag_th + magerr
+c      write (80, '(4(f6.3, 1x), i10)') mag_th, magerr, tmp, mag, seed
+
+      return
+
+      end
+

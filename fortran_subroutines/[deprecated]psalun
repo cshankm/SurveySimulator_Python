@@ -1,0 +1,32 @@
+	subroutine psalun (i, x)
+c********************************************************************
+c
+c cette subroutine calcule un nombre aleatoire par la formule de
+c recurrence :
+c i(k+1) = i(k) * 367379597 + 1 mod(2**31).
+c x est un nombre aleatoire reel double precision compris entre 0.
+c et 1. x = i/2.**31
+c
+c lors du premier appel de psalun, il faut donner une valeur
+c d'initialisation a i puis ne plus changer i.
+c
+c********************************************************************
+	integer*4
+     1	  i, k, mask
+
+	real*8
+     1	  x
+
+	parameter
+     1	  (k = 367379597)
+
+	data
+     1	  mask	/x'7fffffff'/
+
+	i = i*k + 1
+	i = iand(i,mask)
+	x = dfloat(i)/2147483648.
+
+	return
+	end
+

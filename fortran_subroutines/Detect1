@@ -1,0 +1,377 @@
+      subroutine Detect1 (a, e, inc, node, peri, mt0, jday, h,
+     $  surnam, seed, flag, ra, dec, d_ra, d_dec, r, delta, mag,
+     $  dmag, eff, isur, mt, jdayp)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine determines whether a given object is seen by the survey
+c described in the directory \verb|surnam|.
+c An object is described by its ecliptic (J2000) barycentric osculating
+c elements given at time \verb|jday|.
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : January 2006
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     a     : Semi-major axis [AU] (R8)
+c     e     : Eccentricity (R8)
+c     inc   : Inclination [rad] (R8)
+c     node  : Longitude of node [rad] (R8)
+c     peri  : Argument of perihelion [rad] (R8)
+c     mt0   : Mean anomaly [rad] (R8)
+c     jday  : Time of elements [JD] (R8)
+c     h     : Absolute magnitude of object (R8)
+c     surnam: Survey directory name (CH)
+c
+c OUTPUT
+c     seed  : Random number generator seed (I4)
+c     flag  : Return flag. 0: not found; 1: found, not tracked;
+c             2: found and tracked (I4)
+c     ra    : Right ascension [rad] (R8)
+c     dec   : Declination [rad] (R8)
+c     d_ra  : Right ascension rate [rad/day] (R8)
+c     d_dec : Declination rate [rad/day] (R8)
+c     r     : Sun-object distance [AU] (R8)
+c     delta : Earth-object distance [AU] (R8)
+c     mag   : Apparent magnitude, randomized (R8)
+c     dmag  : Uncertainty on magnitude (R8)
+c     eff   : Actual efficiency of detection (R8)
+c     isur  : Number of survey the object was in (I4)
+c     mt    : Mean anomaly at discovery [rad] (R8)
+c     jdayp : Time of discovery [JD] (R8)
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c Set of F2PY directive to create a Python module
+c
+Cf2py intent(in) a
+Cf2py intent(in) e
+Cf2py intent(in) inc
+Cf2py intent(in) node
+Cf2py intent(in) peri
+Cf2py intent(in) mt0
+Cf2py intent(in) jday
+Cf2py intent(in) h
+Cf2py intent(in) surname
+Cf2py intent(in,out) seed
+Cf2py intent(out) flag
+Cf2py intent(out) ra
+Cf2py intent(out) dec
+Cf2py intent(out) d_ra
+Cf2py intent(out) d_dec
+Cf2py intent(out) r
+Cf2py intent(out) delta
+Cf2py intent(out) mag
+Cf2py intent(out) dmag
+Cf2py intent(out) eff
+Cf2py intent(out) isur
+Cf2py intent(out) mt
+Cf2py intent(out) jdayp
+
+      implicit none
+
+      integer*4
+     $  n_sur_max, n_bin_max, screen, keybd, verbose,
+     $  lun_s, lun_h, lun_p
+
+      parameter
+     $  (n_sur_max = 1000, n_bin_max=100,
+     $  screen = 6, keybd = 5, verbose = 99,
+     $  lun_s = 11, lun_h = 6, lun_p = 12)
+
+      real*8
+     $  Pi, TwoPi, drad, eob, eps
+
+      parameter
+     $  (Pi = 3.141592653589793d0, TwoPi = 2.0d0*Pi,
+     $  drad = Pi/180.0d0, eob = 23.439281111d0*drad, eps = 1.d-14)
+
+      real*4
+     $  ran3
+
+      real*8
+     $  a, e, inc, node, peri, mt, h, g, jday, pos(3), mag,
+     $  r, delta, alpha, ra, dec, pos2(3), r2, ra2, dec2,
+     $  sur_w(n_sur_max), sur_h(n_sur_max), sur_ra(n_sur_max),
+     $  sur_dec(n_sur_max), sur_jday(n_sur_max), sur_ff(n_sur_max),
+     $  sur_tr(n_sur_max), sur_x(n_sur_max), sur_y(n_sur_max),
+     $  sur_z(n_sur_max), sur_r(n_sur_max), sur_x2(n_sur_max),
+     $  sur_y2(n_sur_max), sur_z2(n_sur_max), sur_r2(n_sur_max),
+     $  sur_jday2(n_sur_max), sur_eff_b(n_bin_max,n_sur_max),
+     $  sur_eff_m(n_bin_max,n_sur_max), sur_mmag(n_sur_max),
+     $  sur_rn(n_sur_max), sur_rx(n_sur_max), sur_an(n_sur_max),
+     $  sur_aw(n_sur_max), sur_dm(4,n_sur_max), mag_err(4),
+     $  sur_tm(n_sur_max), sur_ts(n_sur_max),
+     $  width, height, ra_p, dec_p, jdayp, ff,
+     $  obspos(3), ros, obspos2(3), ros2, mag_max, mag_faint, random,
+     $  eta, eta_trust, track, jday_o, mt0, jdayp2,
+     $  d_ra, d_dec, r_min, r_max, ang, ang_w, 
+     $  track_mag, track_slope, angle, rate, delta_ra,
+     $  delta_dec, mag_peri, dmag, eff
+
+      integer*4
+     $  sur_code(n_sur_max), sur_eff_n(n_sur_max), eff_n, i,
+     $  n_sur, i_sur, ierr, seed, incode, outcod, flag, isur
+
+      character
+     $  surnam*80, sur_eff(n_sur_max)*80, stra*13, stdec*13
+
+      logical
+     $  debug, newpos, rate_ok, first
+
+      external
+     $  eta, eta_trust, ran3
+
+      data
+     $  first /.true./,
+     $  debug /.false./
+
+      save
+
+      flag = 0
+
+      if (first) then
+         first = .false.
+
+c Opens and reads in survey definitions
+         call GetSurvey (surnam, lun_s, n_sur_max, n_bin_max,
+     $     n_sur, sur_w, sur_h, sur_ra, sur_dec, sur_jday, sur_ff,
+     $     sur_tr, sur_code, sur_x, sur_y, sur_z, sur_r, sur_jday2,
+     $     sur_x2, sur_y2, sur_z2, sur_r2, sur_eff, sur_eff_n,
+     $     sur_eff_b,sur_eff_m, sur_mmag, sur_rn, sur_rx, sur_an,
+     $     sur_aw, sur_tm, sur_ts, sur_dm, mag_faint, ierr)
+         if (ierr .ne. 0) then
+            if (ierr .eq. 100) then
+               write (screen, *)
+     $           'GetSurvey: reached maximum number of pointings, ',
+     $           n_sur
+            else if (ierr .eq. 10) then
+               write (screen, *)
+     $           'Unable to open survey file in '//surnam
+            else if (ierr .eq. 30) then
+               goto 100
+            else
+               write (screen, *) 'Unknown return code in read_sur.'
+            end if
+            stop
+         end if
+ 100     continue
+      end if
+
+c Hard coded slope for magnitude ! Bad boy !
+      g = -0.12d0
+
+c Compute approximate maximum apparent magnitude
+      r = a*(1.d0 - e)
+      call AppMag (r, r, 0.d0, h, g, alpha, mag_peri, ierr)
+
+      if (mag_peri .le. mag_faint) then
+         jday_o = -1.d30
+
+c loop on surveys
+         do i_sur = 1, n_sur
+            obspos(1) = sur_x(i_sur)
+            obspos(2) = sur_y(i_sur)
+            obspos(3) = sur_z(i_sur)
+            ros = sur_r(i_sur)
+            jdayp = sur_jday(i_sur)
+            obspos2(1) = sur_x2(i_sur)
+            obspos2(2) = sur_y2(i_sur)
+            obspos2(3) = sur_z2(i_sur)
+            ros2 = sur_r2(i_sur)
+            jdayp2 = sur_jday2(i_sur)
+            ff = sur_ff(i_sur)
+            height = sur_h(i_sur)
+            ra_p = sur_ra(i_sur)
+            dec_p = sur_dec(i_sur)
+            r_min = sur_rn(i_sur)
+            r_max = sur_rx(i_sur)
+            ang = sur_an(i_sur)
+            ang_w = sur_aw(i_sur)
+            track_mag = sur_tm(i_sur)
+            track_slope = sur_ts(i_sur)
+            track = sur_tr(i_sur)
+            width = sur_w(i_sur)
+            do i = 1, 4
+               mag_err(i) = sur_dm(i,i_sur)
+            end do
+
+c Quick and dirty trick to avoid some objects on not too faint surveys:
+c drop objects that are fainter, at pericenter, and as seen from the
+c Sun, than the faintest magnitude recorded for that survey
+            eff_n = sur_eff_n(i_sur)
+            mag_max = sur_mmag(i_sur)
+
+c Any chance this survey can see the object ?
+            if (mag_peri .le. mag_max) then
+
+               newpos = .false.
+               if (abs(jdayp-jday_o) .gt. 0.1d0) then
+                  mt = mt0 + (twopi/(a**1.5d0*365.25d0))*(jdayp-jday)
+                  mt = mt - int(mt/twopi)*twopi
+                  call pos_cart (a, e, inc, node, peri, mt, pos(1),
+     $              pos(2), pos(3))
+                  jday_o = jdayp
+                  newpos = .true.
+               end if
+               if (debug) then
+                  write (verbose, *) 'Survey: ', i_sur
+                  write (verbose, *) pos(1), pos(2), pos(3), jday,
+     $              jday_o
+                  write (verbose, *) obspos(1), obspos(2), obspos(3),
+     $              jdayp
+                  write (verbose, *) obspos2(1), obspos2(2), obspos2(3),
+     $              jdayp2
+               end if
+               call DistSunEcl (jdayp, pos, r)
+               call RADECeclXV (pos, obspos, delta, ra, dec)
+               call AppMag (r, delta, ros, h, g, alpha, mag, ierr)
+               if (ierr .ne. 0) then
+                  write (screen, *) 'AppMag: something''s wrong !'
+                  write (screen, *) 'ierr = :', ierr
+                  write (screen, *) 'Survey number: ', i_sur
+                  stop
+               end if
+
+c Check magnitude again, before randomization
+c               if (mag .le. mag_max) then
+
+c Randomize magnitude
+c               write (80, '(f7.3, $)') mag
+c               call magran (mag, mag_err, seed, mag, dmag)
+c               write (80, '(f7.3, f7.3)') mag, dmag
+
+c Format angles for output
+               if (debug) then
+                  incode = 1
+                  outcod = 1
+                  call Format (ra, incode, outcod, stra, ierr)
+                  if (ierr .ne. 0) then
+                     write (screen, *) 'Error in formatting output.'
+                     write (screen, *) 'ierr = ', ierr
+                     stop
+                  end if
+                  outcod = 0
+                  call Format (dec, incode, outcod, stdec, ierr)
+                  if (ierr .ne. 0) then
+                     write (screen, *) 'Error in formatting output.'
+                     write (screen, *) 'ierr = ', ierr
+                     stop
+                  end if
+                  write (verbose,
+     $              '(3(f8.3, 1x), a13, 1x, a13)')
+     $              mt0/drad, peri/drad, node/drad,
+     $              stra, stdec
+                  write (verbose, *) ra/drad, dec/drad, mag, mag_max
+               end if
+
+c Still any chance to see it ?
+               if (mag .le. mag_max) then
+
+c Is the object in the FOV ?
+                  delta_dec = dabs(dec - dec_p)
+                  delta_ra = dabs(ra - ra_p)
+                  if (delta_ra .gt. Pi) delta_ra = TwoPi - delta_ra
+                  delta_ra = delta_ra*dcos(dec)
+                  if (debug) then
+                     write (verbose, *) 'Check for FOV.'
+                     write (verbose, *) delta_dec/drad, height/drad
+                     write (verbose, *) delta_ra/drad, width/drad
+                  end if
+                  if ((delta_dec .lt. height)
+     $              .and. (delta_ra .lt. width)) then
+c Now check for the efficiency
+                     random = ran3(seed)
+                     eff = eta_trust(eff_n, sur_eff_b(1,i_sur),
+     $                 sur_eff_m(1,i_sur), mag, rate)
+                     if (debug) then
+                        write (verbose, *)
+     $                    'In FOV of survey. Check detection.'
+                        write (verbose, *) random, eff, ff
+                     end if
+                     if (random .le. eff*ff) then
+
+c Well, how is its rate of motion ? Within the rate cut or not ?
+                        mt = mt0 + (twopi/(a**1.5d0*365.25d0))*(jday_o
+     $                    + jdayp2 - jdayp - jday)
+                        mt = mt - int(mt/twopi)*twopi
+                        call pos_cart (a, e, inc, node, peri, mt,
+     $                    pos2(1), pos2(2), pos2(3))
+                        call DistSunEcl (jdayp2, pos2, r2)
+                        call RADECeclXV (pos2, obspos2, delta, ra2,
+     $                    dec2)
+                        d_ra = ra - ra2
+                        if (d_ra .gt. Pi) d_ra = d_ra - TwoPi
+                        if (d_ra .lt. -Pi) d_ra = d_ra + TwoPi
+                        d_ra = d_ra/(jdayp2 - jdayp)*dcos(dec)
+                        d_dec = (dec2 - dec)/(jdayp2 - jdayp)
+                        rate = dsqrt(d_ra**2 + d_dec**2)
+                        angle = atan2(d_dec/rate, d_ra/rate)
+                        if (angle .lt. -Pi) angle = angle + TwoPi
+                        if (angle .gt. Pi) angle = angle - TwoPi
+                        rate_ok = (rate .ge. r_min)
+     $                    .and. (rate .le. r_max)
+                        rate_ok = rate_ok .and.
+     $                    (dabs(ang - angle) .le. ang_w)
+                        if (debug) then
+                           write (verbose, *) 'Check for rate.'
+                           write (verbose, *) rate/drad*3600.d0/24.d0,
+     $                       r_min/drad*3600.d0/24.d0,
+     $                       r_max/drad*3600.d0/24.d0
+                           write (verbose, *) angle/drad,
+     $                       ang/drad, ang_w/drad
+                           write (verbose, *) pos2(1), pos2(2), pos2(3)
+                        end if
+                        if (rate_ok) then
+
+c Hurray ! We found it.
+                           flag = 1
+                           if (debug) then
+                              write (verbose, *)
+     $                          'Hurray ! We found it.'
+                           end if
+
+c Randomize magnitude
+c               write (80, '(f7.3, $)') mag
+                           call magran (mag, mag_err, seed, mag, dmag)
+c               write (80, '(f7.3, f7.3)') mag, dmag
+
+c And check we still keep it
+                           eff = eta(eff_n, sur_eff_b(1,i_sur),
+     $                       sur_eff_m(1,i_sur), mag, rate)
+                           if (eff .le. 0.d0) then
+                              flag = 0
+                           end if
+
+c If still detected, determine if tracked, store informations and
+c return
+                           if (flag .gt. 0) then
+                              random = ran3(seed)
+                              track = 1.d0 + (mag - track_mag)
+     $                          *track_slope
+                              if (random .le. track) then
+                                 flag = 2
+                              end if
+c Record the survey number.
+                              isur = i_sur
+c We got it, and we know if it was tracked. So return now.
+                              return
+                           end if
+
+                        end if
+                     end if
+                  end if
+c End check on randomized magnitude
+               end if
+c End check on computed magnitude
+c               end if
+            end if
+
+c End loop on surveys
+         end do
+      end if
+
+      return
+
+      end
+

@@ -1,0 +1,157 @@
+      subroutine osc_el (mu, x, y, z, vx, vy, vz,
+     $  a, ecc, inc, capo, smallo, capm)
+
+c This routine transforms cartisian variables into delaunay
+c variables.
+c
+c \subsection{Arguments}
+c \subsubsection{Definitions}
+c \begin{verse}
+c \verb|a, e, inc, capo, smallo, capm| = osculating elements \\
+c \verb|cart| = cartesian variables: $X, Y, Z, Px, Py, Pz$
+c \end{verse}
+c
+c \subsubsection{Declarations}
+
+      implicit none
+
+      real*8
+     $  a, ecc, inc, capo, smallo, capm, mu, x, y, z, vx, vy, vz
+
+c \subsection{Variables}
+c \subsubsection{Definitions}
+c \begin{verse}
+c \verb|cos_i, sin_i| = sinus and cosines of $i$ \\
+c \verb|delau| = Delaunay variables:  $l, \cos(g), \sin(g), \cos(h),
+c      \sin(h), L, G, H$ \\
+c \verb|e| = eccentric anomaly \\
+c \verb|f| = $f$ true anomaly \\
+c \verb|g| = $g$ argument of pericenter \\
+c \verb|h_vec| = $\vec h = \vec X \times \vec P$ \\
+c \verb|p_vec| = $\vec p = -\mu \frac{\vec X}{r}
+c      - \vec h \times \vec P$ \\
+c \verb|r| = radial distance \\
+c \verb|tmp1, tmp2| = temporary variables \\
+c \verb|v2| = velocity squared
+c \end{verse}
+c
+c \subsubsection{Declarations}
+
+      real*8
+     $  delau(8), e, f, h_vec(3), p_vec(3),
+     $  r, tmp1, tmp2, v2, signe, cart(6)
+
+c Computation of angular momentum and eccentricity vector.
+c \begin{eqnarray*}
+c     \vec h & = & \vec X \times \vec P, \\
+c     \vec p & = & -\mu \frac{\vec X}{|\vec X|}
+c                  - \vec h \times \vec P
+c \end{eqnarray*}
+
+      cart(1) = x
+      cart(2) = y
+      cart(3) = z
+      cart(4) = vx
+      cart(5) = vy
+      cart(6) = vz
+      h_vec(1) = cart(2)*cart(6) - cart(3)*cart(5)
+      h_vec(2) = cart(3)*cart(4) - cart(1)*cart(6)
+      h_vec(3) = cart(1)*cart(5) - cart(2)*cart(4)
+      r = 1.d0/dsqrt(cart(1)**2 + cart(2)**2 + cart(3)**2)
+      p_vec(1) = -mu*cart(1)*r - h_vec(2)*cart(6) + h_vec(3)*cart(5)
+      p_vec(2) = -mu*cart(2)*r - h_vec(3)*cart(4) + h_vec(1)*cart(6)
+      p_vec(3) = -mu*cart(3)*r - h_vec(1)*cart(5) + h_vec(2)
+     $  *cart(4)
+
+c Computation of momenta.
+c \begin{eqnarray*}
+c     L & = & \mu\sqrt{\frac{1}
+c                      {\frac{2\mu}{|\vec X|}-|\vec P|^2}}, \\
+c     G & = & |\vec h|, \\
+c     H & = &  h_z
+c \end{eqnarray*}
+
+      v2 = cart(4)**2 + cart(5)**2 + cart(6)**2
+      tmp1 = 2.d0*mu*r - v2
+      signe = 1.d0
+      if (tmp1 .lt. 0.d0) signe = -1.d0
+      delau(6) = signe*mu/dsqrt(signe*tmp1)
+      delau(7) = dsqrt(h_vec(1)**2 + h_vec(2)**2 + h_vec(3)**2)
+      delau(8) = h_vec(3)
+
+      if ((cart(3) .eq. 0.d0) .and. (cart(6) .eq. 0.d0)) then
+         delau(4) = 1.d0
+         delau(5) = 0.d0
+         tmp1 = 1.d0/dsqrt(p_vec(1)**2 + p_vec(2)**2)
+         delau(2) = p_vec(1)*tmp1
+         delau(3) = p_vec(2)*tmp1
+      else
+
+c Longitude of node.
+c \begin{eqnarray*}
+c     \cos(h) & = & -\frac{h_y}{\sqrt{h_x^2 + h_y^2}}, \\
+c     \sin(h) & = & \frac{h_x}{\sqrt{h_x^2 + h_y^2}}
+c \end{eqnarray*}
+
+         tmp1 = 1.d0/dsqrt(h_vec(1)**2 + h_vec(2)**2)
+         delau(4) = -h_vec(2)*tmp1
+         delau(5) = h_vec(1)*tmp1
+
+c Argument of pericenter.
+c Let us call $\vec N$ the vector derived from $\vec h$, pointing
+c to the ascending node:
+c \begin{displaymath}
+c     \vec N = \left(-h_y, h_x, 0\right)
+c \end{displaymath}
+c From this, we get:
+c \begin{eqnarray*}
+c     \cos(g) & = & \frac{\vec N \cdot \vec p}{|\vec N||\vec p|}, \\
+c     \sin(g) & = & \frac{\vec N \times \vec p}{|\vec N||\vec p|}
+c                   \cdot \frac{\vec h}{|\vec h|}
+c \end{eqnarray*}
+
+         tmp2 = 1.d0/dsqrt(p_vec(1)**2 + p_vec(2)**2 + p_vec(3)**2
+     $     )
+         delau(2) = (h_vec(1)*p_vec(2) - h_vec(2)*p_vec(1))*tmp1
+     $     *tmp2
+         delau(3) = ((h_vec(1)**2 + h_vec(2)**2)*p_vec(3)
+     $     - h_vec(3)*(h_vec(1)*p_vec(1) + h_vec(2)*p_vec(2)))
+     $     *tmp1*tmp2/delau(7)
+      end if
+
+c Mean anomaly
+c We define $\vec X_{orb} = R_1(i) \cdot R_3(h) \vec X$. It turns
+c out that $\vec X_{orb} = (r \cos(g+f), r \sin(g+f), 0)$. Hence:
+c \begin{eqnarray*}
+c     \cos(g+f) & = & \cos(h) X + \sin(h) Y, \\
+c     \sin(g+f) & = & \cos(i) \left(\cos(h) Y - \sin(h) X\right)
+c                   + \sin(i) Z
+c \end{eqnarray*}
+c Furthermore, we have the relation:
+c \begin{displaymath}
+c     \tan(\frac{E}{2}) = \sqrt{\frac{1 - e}{1 + e}}
+c                         \tan(\frac{f}{2})
+c \end{displaymath}
+c and finally:
+c \begin{displaymath}
+c     l = E - e \sin(E)
+c \end{displaymath}
+
+      ecc = dsqrt(dmax1(1.d0 - signe*(delau(7)/delau(6))**2, 0.d0))
+      tmp1 = (cart(1)*p_vec(1) + cart(2)*p_vec(2) + cart(3)*p_vec(3))
+      tmp2 = ((cart(3)*p_vec(2) - cart(2)*p_vec(3))*h_vec(1)
+     $  + (cart(1)*p_vec(3) - cart(3)*p_vec(1))*h_vec(2)
+     $  + (cart(2)*p_vec(1) - cart(1)*p_vec(2))*h_vec(3))
+     $  /delau(7)
+      f = datan2(tmp2, tmp1)
+      e = 2.d0*datan(dsqrt(signe*(1.d0 - ecc)/(1.d0 + ecc))
+     $  *dtan(f/2.d0))
+      capm = e - ecc*dsin(e)
+      capo = datan2(delau(5), delau(4))
+      smallo = datan2(delau(3), delau(2))
+      a = signe*delau(6)**2/mu
+      inc = dacos(dmax1(dmin1(delau(8)/delau(7),1.d0),-1.d0))
+
+      return
+      end
+

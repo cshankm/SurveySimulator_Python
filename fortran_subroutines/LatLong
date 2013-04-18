@@ -1,0 +1,41 @@
+      subroutine LatLong (pos, long, lat, r)
+
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c This routine transforms cartesian coordinates into longitude,
+c latitute and distance (almost spherical coordinates). If the input
+c cordinates are in ICRF, then one obtains the RA and DEC
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c
+c J-M. Petit  Observatoire de Besancon
+c Version 1 : September 2003
+c
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+c INPUT
+c     pos   : Object's cartesian coordinates
+c
+c OUTPUT
+c     long  : Longitude (RA if ICRF)
+c     lat   : Latitude (DEC if ICRF)
+c     r     : Distance to center
+c-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+Cf2py intent(in) pos
+Cf2py intent(out) long
+Cf2py intent(out) lat
+Cf2py intent(out) r
+
+      implicit none
+
+      real*8
+     $  pos(3), lat, long, r, Pi, TwoPi
+
+      parameter
+     $  (Pi = 3.141592653589793d0, TwoPi = 2.d0*Pi)
+
+      r = dsqrt (pos(1)**2 + pos(2)**2 + pos(3)**2)
+      long = datan2(pos(2), pos(1))
+      if (long .lt. 0.d0) long = long + TwoPi
+      lat = asin(pos(3)/r)
+
+      return
+      end
+
