@@ -3,167 +3,60 @@ from random import random
 import math
 
 
-class kbo:
+class kbo(object):
     'Class for all KBOs in a survey simulator'
 
     __simdetections = 0
 
-    def __init__(self, a, e, inc, capom, argperi):
+    def __init__(self, a, e, inc, capom, argperi, H=5):
         self.a = a
         self.e = e
         self.inc = inc
-        self.capom = capom
+        self.capom = capom # degrees or radians?
         self.argperi = argperi
-        self.H = 5  # Assign arbitrary h value
+        self.H = H
 
-#-------------------------- Size Distribution ---------------------------------
+    @property
+    def a(self):
+        """I'm the a property."""
+        return self._a
 
-    def drawH(self, alpha, hmax, alpha_faint=None, contrast=1, hbreak=None,
-              hmin=1):
-        """Compute and assign and H-magnitude from a so-called singlE
-        power-law, knee, or divot H-magnitude distribution.
+    @a.setter
+    def a(self, value):
+        if not 0.0 <= value <= 10E6:
+            raise ValueError('Bad a value. Ensure 0.0 < a < 10E6')
+        self._a = value
 
-        When provided a slope alpha and a faint-side maximum H-magnitude
-        (hmax), a H-magnitude is drawn randomly from the distribution
-                      dN/dH propto 10**(alpha H)
-        in the range hmin = 1 to hmax. Specify hmin to change the bright-end.
+    @property
+    def e(self):
+        """I'm the e property."""
+        return self._e
 
-        Specifying an hbreak and alpha_faint will draw from a knee distribution
+    @e.setter
+    def e(self, value):
+        if not 0.0 <= value <= 1.0:
+            raise ValueError('Bad e value. e must be between 0 and 1')
+        self._e = float(value)
 
-        Specifying an hbreak, alpha_faint and contrast will draw from a divot
-        distrubtion as in Shankman et al. 2013
+    @property
+    def inc(self):
+        """I'm the a property."""
+        return self._inc
 
-        e.g.
-
-        ---Single Power Law---
-
-        object.drawH(0.8,13)
-
-        will draw an H-magnitude from the appropriate distribution such that
-        H [1,13]
-
-        object.drawH(0.8,13,hmin=5)
-
-        will draw an H-magnitude such that H [5,13]
-
-        ---Knee---
-
-        To draw from a knee distribution specify hbreak and alpha_faint
-
-        object.drawH(0.8, 13, hbreak=9, alpha_faint = 0.5)
-
-        This will draw an H-magnitude from a distrubtion that breaks at H=9
-        from a slope of 0.8 to a slope of 0.5. hmin can also be specified here.
-
-
-        ---Divot---
-
-        To draw from a divot (see Shankman et al 2013), specify hbreak,
-        alpha_faint, and the contrast value. Contrasts should be > 1.
-        hmin can also be specified.
-
-        object.drawH(0.8, 13, hbreak=9, alpha_faint = 0.5, contrast = 23)
-
-
-        """
-
-        # Avoid singularity for alpha = 0
-        alpha = 0.0000000001 if alpha == 0 else alpha
-        # Set alpha_faint to alpha for the case of a single power-law
-        alpha_faint = alpha if alpha_faint is None else alpha_faint
-        # Avoid singularity for alpha_faint = 0
-        alpha_faint = 0.0000000001 if alpha_faint == 0 else alpha_faint
-        # Set hbreak to be the maximum H for the case of a single power-law
-        hbreak = hmax if hbreak is None else hbreak
-
-        # ckc is the fraction of objects big (H<Hbreak) of the break
-        # (with contrast cont >= 1 as in Shankman et al. 2013)
-        ckc = (1.0 + 1.0 / contrast * alpha / alpha_faint *
-               (10**(alpha_faint*(hmax - hbreak)) - 1.0))**(-1.0)
-
-        rv = random()
-        if (rv < ckc):
-            rv = random()
-            hbright = 10**(alpha*hmin)
-            hfaint = 10**(alpha*hbreak)
-            self.H = math.log10(rv*(hfaint - hbright) + hbright) / alpha
-        else:
-            rv = random()
-            hbright = 10**(alpha_faint*hbreak)
-            hfaint = 10**(alpha_faint*hmax)
-            self.H = math.log10(rv*(hfaint - hbright) + hbright) / alpha_faint
-        print self.H
-
-
-#----------------- Fuzzing Variables a,e,inc, argperi, capom ------------------
-
-    def afuzz(self, afz, type=None):
-        """Perturb (fuzz) semimajor axis randomly by up to +- percent specified
-        Input is treated as percentage if type is not specified as 'abs'.
-        If type = 'abs', a will be changed randomly by +- amount specified.
-
-        e.g.
-               # KBO(a, e, inc, argperi, capom)
-        object = KBO(75, 0.5, 12, 45, 60)
-        object.afuzz(0.1)
-
-        this will take a and randomly perturb it by +- 10%
-
-        object.afuzz(10)
-
-        produces the same result
-
-        ---
-
-        Conversely,
-
-        object.afuzz(0.1, type='abs')
-
-        pertubs a by +- 0.1 AU, and
-
-        object.afuzz(10, type='abs')
-
-        perturbs a by +- 10 AU
-
-        """
-        afz = afz/100.0 if (afz>1.0 and type is None) else afz
-        self.a = (self.a*(1.0 + afz*(2.0*random()-1.0)) if type is None else
-                 (self.a + (2.0*random()-1.0)*afz))
-
-    def efuzz(self, efz, type=None):
-        efz = efz/100.0 if efz>1.0 else efz
-        self.e = (self.e*(1.0 + efz*(2.0*random()-1.0)) if type is None else
-                 (self.e + (2.0*random()-1.0)*efz))
-
-    def ifuzz(self, ifz, type=None):
-        ifz = ifz/100.0 if (ifz>1.0 and type is None) else ifz
-        self.inc = (self.inc*(1. + ifz*(2.*random()-1.)) if type is None else
-                 (self.inc + (2.0*random()-1.0)*ifz))
-
-    def argfuzz(self, argfz, type=None):
-        argfz = argfz/100.0 if (argfz>1.0 and type is None) else argfz
-        self.argperi = (self.argperi*(1.0 + argfz*(2.0*random()-1.0)) if type
-                        is None else (self.argperi + (2.0*random()-1.0)*argfz))
-
-    def omfuzz(self, omfz, type=None):
-        omfz = omfz/100.0 if (omfz>1.0 and type is None) else omfz
-        self.capom = (self.capom*(1.0 + omfz*(2.0*random()-1.0)) if type
-                      is None else (self.capom + (2.0*random()-1.0)*omfz))
-
-    def fuzz(self, afz, efz, ifz, argfz, omfz, type=None):
-        self.afuzz(afz, type)
-        self.efuzz(efz, type)
-        self.ifuzz(ifz, type)
-        self.argfuzz(argfz, type)
-        self.omfuzz(omfz, type)
+    @inc.setter
+    def inc(self, value):
+        if not 0.0 <= value <= 90:
+            raise ValueError('Bad inclination value. Ensure 0.0 < inclination < 90 degrees')
+        self._inc = value
 
 
 #------------------------------- Object Status --------------------------------
 
     def params(self):
-        """Print the current orbital parameters a, e, inc, argperi, capom."""
+        """Print the current orbital parameters a, e, inc, argperi, capom, H"""
         print "a is ", self.a
         print "e is ", self.e
         print "inclination is ", self.inc
         print "argument of pericentre is ", self.argperi
         print "Capital Omega is ", self.capom
+        print "The H-mag is ", self.H
