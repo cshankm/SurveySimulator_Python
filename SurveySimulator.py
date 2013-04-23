@@ -2,6 +2,9 @@
 from random import random
 import math
 import ephem
+# import field
+# to be implemented once the field class has been created
+
 
 class ssobj(ephem.EllipticalBody):
     'Class for all Survey Simulator objects.'
@@ -55,7 +58,7 @@ class ssobj(ephem.EllipticalBody):
 
     @inc.setter
     def inc(self, value):
-        if not 0.0 <= value <= 90:
+        if not 0.0 <= value <= 180.0:
             raise ValueError('Bad inclination value. Ensure 0.0 < inclination < 90 degrees')
         self._inc = value
 
@@ -263,6 +266,8 @@ class ssobj(ephem.EllipticalBody):
         if not hasattr(self, variable):
             raise ValueError("You tried to fuzz a parameter that does not exit")
         var = getattr(self, variable)
+        if variable in ['inc', 'om', 'Om']:
+            var = float(var)*180.0/math.pi
         fz = fz/100.0 if (fz > 1.0 and type is None) else fz
         var = (var*(1.0 + fz*(2.0*random()-1.0)) if type is None else
                (var + (2.0*random()-1.0)*fz))
@@ -276,5 +281,7 @@ class ssobj(ephem.EllipticalBody):
 def detect(candidate_ssobj):
     # Take in the cadidate object and 
     # do all of the actual detection stuff. 
+    pass
+# Probably also write out for successful detections
 
-    # Probably also write out for successful detections
+
