@@ -9,8 +9,6 @@ import ephem
 class ssobj(ephem.EllipticalBody):
     'Class for all Survey Simulator objects.'
 
-    __simdetections = 0
-
     def __init__(self, a, e, inc, capom, argperi, H=5, M=0.0):
 #        ephem.EllipticalBody.__init__()
         self.a = a
@@ -263,11 +261,15 @@ class ssobj(ephem.EllipticalBody):
         perturbs a by +- 10 AU
 
         """
+        # Check to see if the attribute exists, if so get the value
         if not hasattr(self, variable):
             raise ValueError("You tried to fuzz a parameter that does not exit")
         var = getattr(self, variable)
+        # if variable is an angle, treat it properly as 
+        # float(ephem.EllipticalBody().inc) gives the angle in radians
         if variable in ['inc', 'om', 'Om']:
             var = float(var)*180.0/math.pi
+        # set fuzzer to percent
         fz = fz/100.0 if (fz > 1.0 and type is None) else fz
         var = (var*(1.0 + fz*(2.0*random()-1.0)) if type is None else
                (var + (2.0*random()-1.0)*fz))
@@ -278,10 +280,63 @@ class ssobj(ephem.EllipticalBody):
 #-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*- Detect *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 #-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 
-def detect(candidate_ssobj):
-    # Take in the cadidate object and 
-    # do all of the actual detection stuff. 
-    pass
-# Probably also write out for successful detections
 
+class detect(object):
+
+    fuzzedvars =[]
+
+    @classmethod
+    def load_survey(cls, path):
+        # Empty dictionary to contain all of the field objects in the class
+        cls.fields = {}
+        # path to pointing.list directory
+        # create field objects for every pointing which are shared by the class
+
+    @classmethod
+    def hdraw(cls, *args):
+        pass
+
+    @classmethod
+    def fuzz_objects(cls, *args):
+#        cls.fuzzed = True  # Probably unnecessary
+
+        options = ['a', 'e', 'inc', 'Om', 'om']
+        for item in args:
+            if not item[0] in options:
+                raise ValueError('Your given input of ' + item[0] + ' is not of a fuzzable variable')
+            if not item[2] is 'abs':
+                rais ValueError("The third argument for fuzz_objects MUST be 'abs' if specified")
+            if len(item) > 3:
+                raise ValuError("Specify the variable to be fuzzed and the amount e.g. ('inc', 1, 'abs')")
+
+        cls.fuzzedvars = args
+
+    @classmethod
+    def load_file(cls, filepath, *args):
+        cls.filepath = filepath
+        # 
+        # take in the order of the variables in the file as a tuple
+        # i.e. ss.loadfile(path, ('inc',1), ('a',2)) counting from 0
+        options = ['a', 'e', 'inc', 'Om', 'om', 'H', 'M', 'M_epoch']
+
+        for item in args:
+            if not item[0] in options:
+                raise ValueError('Your given input of ' + item[0] + ' is not of the appropriate read-in type')
+            if len(item) > 2:
+                raise ValuError("Specify the variable and column of the variable in the form ('a', 0), counting from 0")
+        cls.elementorder = args
+
+    @classmethod
+    def numdetections(class, numdetections):
+        cls.numdetections = numdetections
+
+    @classmethod
+    def output(cls, outputfile):
+        cls.outputfile = outputfile
+
+    def __init__(self, external_candidate):
+        # Take in the cadidate object and 
+        # do all of the actual detection stuff. 
+        pass
+# Probably also write out for successful detections
 

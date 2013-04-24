@@ -2,6 +2,11 @@ import SurveySimulator as ss
 
 # An example of how the Survey Simulator will be used
 
+# First let the Survey Simulator know where the definition of the
+# survey is
+path = '/path/to/pointing.list/directory'
+ss.detect.load_survey(path)
+
 #Take our friend Drac
 a = 45.46
 e = 0.553
